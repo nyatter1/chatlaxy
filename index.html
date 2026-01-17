@@ -10,13 +10,14 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Icons -->
+    <!-- Icons (Lucide) -->
     <script src="https://unpkg.com/lucide@0.263.1/dist/umd/lucide.min.js"></script>
 
     <!-- Firebase SDKs (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics-compat.js"></script>
 
     <style>
@@ -42,14 +43,18 @@
       }
       
       .glass-panel {
-        background: rgba(30, 41, 59, 0.7);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
+        background: rgba(30, 41, 59, 0.75);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
         border: 1px solid rgba(148, 163, 184, 0.1);
       }
 
       .animate-fade-in {
         animation: fadeIn 0.3s ease-out;
+      }
+      
+      .animate-pulse-slow {
+        animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
       }
 
       @keyframes fadeIn {
@@ -60,62 +65,82 @@
       .hidden-force {
         display: none !important;
       }
+      
+      .like-btn-active {
+        color: #ef4444; /* Red 500 */
+        fill: #ef4444;
+      }
     </style>
 </head>
-<body class="overflow-hidden h-screen w-screen relative">
+<body class="overflow-hidden h-screen w-screen relative selection:bg-indigo-500/30">
 
     <!-- Loading Screen -->
     <div id="loading-screen" class="absolute inset-0 z-50 flex items-center justify-center bg-slate-900 text-indigo-500">
-        <i data-lucide="loader-2" class="w-10 h-10 animate-spin"></i>
+        <div class="flex flex-col items-center gap-4">
+            <i data-lucide="loader-2" class="w-12 h-12 animate-spin"></i>
+            <span class="text-sm font-medium tracking-widest uppercase text-slate-500">Initializing Uplink...</span>
+        </div>
     </div>
 
     <!-- Auth Screen -->
     <div id="auth-screen" class="hidden absolute inset-0 z-40 flex items-center justify-center bg-[url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop')] bg-cover bg-center">
         <div class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm"></div>
-        <div class="relative z-10 w-full max-w-md p-8 glass-panel rounded-2xl shadow-2xl mx-4">
+        <div class="relative z-10 w-full max-w-md p-8 glass-panel rounded-2xl shadow-2xl mx-4 border border-white/5">
             <div class="text-center mb-8">
+                <div class="flex justify-center mb-4">
+                    <div class="p-3 bg-indigo-500/20 rounded-full ring-1 ring-indigo-500/50">
+                        <i data-lucide="globe" class="w-8 h-8 text-indigo-400"></i>
+                    </div>
+                </div>
                 <h1 class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 mb-2">
                     ChatLaxy
                 </h1>
                 <p class="text-slate-400">Join the galactic conversation.</p>
             </div>
 
-            <div id="auth-error" class="hidden bg-red-500/20 border border-red-500/50 text-red-200 p-3 rounded-lg mb-4 text-sm text-center"></div>
+            <div id="auth-error" class="hidden bg-red-500/10 border border-red-500/20 text-red-200 p-3 rounded-lg mb-6 text-sm text-center flex items-center justify-center gap-2">
+                <i data-lucide="alert-circle" class="w-4 h-4"></i>
+                <span id="auth-error-msg">Error message</span>
+            </div>
 
             <form id="auth-form" class="space-y-4">
-                <div id="signup-fields" class="hidden">
-                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Username</label>
-                    <div class="relative">
-                        <i data-lucide="user" class="absolute left-3 top-3 w-5 h-5 text-slate-500"></i>
-                        <input type="text" id="auth-username" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition" placeholder="Enter username" />
+                <div id="signup-fields" class="hidden space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Username</label>
+                        <div class="relative group">
+                            <i data-lucide="user" class="absolute left-3 top-3 w-5 h-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors"></i>
+                            <input type="text" id="auth-username" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition outline-none" placeholder="Enter username" />
+                        </div>
+                        <p class="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                            <i data-lucide="info" class="w-3 h-3"></i> Unique name required. 'Developer' gets Dev rank.
+                        </p>
                     </div>
-                    <p class="text-xs text-slate-500 mt-1">* Set username to 'Developer' for Dev rank.</p>
                 </div>
 
                 <div>
                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Email</label>
-                    <div class="relative">
-                        <i data-lucide="users" class="absolute left-3 top-3 w-5 h-5 text-slate-500"></i>
-                        <input type="email" id="auth-email" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition" placeholder="name@example.com" />
+                    <div class="relative group">
+                        <i data-lucide="mail" class="absolute left-3 top-3 w-5 h-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors"></i>
+                        <input type="email" id="auth-email" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition outline-none" placeholder="name@example.com" />
                     </div>
                 </div>
 
                 <div>
                     <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Password</label>
-                    <div class="relative">
-                        <i data-lucide="shield" class="absolute left-3 top-3 w-5 h-5 text-slate-500"></i>
-                        <input type="password" id="auth-password" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition" placeholder="••••••••" />
+                    <div class="relative group">
+                        <i data-lucide="lock" class="absolute left-3 top-3 w-5 h-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors"></i>
+                        <input type="password" id="auth-password" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition outline-none" placeholder="••••••••" />
                     </div>
                 </div>
 
-                <button type="submit" id="auth-submit-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg shadow-lg hover:shadow-indigo-500/25 transition-all transform hover:scale-[1.02]">
+                <button type="submit" id="auth-submit-btn" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold py-3 rounded-lg shadow-lg hover:shadow-indigo-500/25 transition-all transform hover:scale-[1.02] active:scale-[0.98]">
                     Enter Command
                 </button>
             </form>
 
             <div class="mt-6 text-center text-sm text-slate-400">
                 <span id="auth-switch-text">Don't have an account? </span>
-                <button id="auth-switch-btn" class="text-indigo-400 hover:text-indigo-300 font-medium underline underline-offset-4">
+                <button id="auth-switch-btn" class="text-indigo-400 hover:text-indigo-300 font-medium hover:underline underline-offset-4 transition-colors">
                     Sign up
                 </button>
             </div>
@@ -125,19 +150,24 @@
     <!-- Main App Screen -->
     <div id="app-screen" class="hidden flex h-full bg-slate-900">
         <!-- Mobile Sidebar Toggle -->
-        <button id="mobile-menu-btn" class="md:hidden fixed top-4 left-4 z-40 p-2 bg-slate-800 rounded-lg text-white shadow-lg">
+        <button id="mobile-menu-btn" class="md:hidden fixed top-4 left-4 z-40 p-2 bg-slate-800/90 backdrop-blur rounded-lg text-white shadow-lg border border-slate-700">
             <i data-lucide="menu" class="w-6 h-6"></i>
         </button>
 
         <!-- Main Chat Area -->
         <div class="flex-1 flex flex-col h-full relative">
             <!-- Header -->
-            <header class="h-16 glass-panel border-b-0 border-r-0 border-l-0 border-slate-700/50 flex items-center justify-between px-6 z-20 md:pl-6 pl-16">
-                <div class="flex items-center gap-2">
-                    <i data-lucide="globe" class="w-6 h-6 text-indigo-500 animate-pulse"></i>
-                    <h1 class="font-bold text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-pink-400">
-                        ChatLaxy <span class="text-xs text-slate-500 font-normal ml-2">Global Channel</span>
-                    </h1>
+            <header class="h-16 glass-panel border-b-0 border-r-0 border-l-0 border-slate-700/50 flex items-center justify-between px-6 z-20 md:pl-6 pl-16 shadow-lg shadow-black/20">
+                <div class="flex items-center gap-3">
+                    <div class="bg-indigo-500/10 p-1.5 rounded-lg">
+                        <i data-lucide="globe" class="w-5 h-5 text-indigo-500 animate-pulse-slow"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-pink-400 leading-none">
+                            ChatLaxy
+                        </h1>
+                        <span class="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Global Nexus</span>
+                    </div>
                 </div>
                 <div class="flex items-center gap-4" id="current-user-header">
                     <!-- Injected via JS -->
@@ -145,19 +175,24 @@
             </header>
 
             <!-- Messages -->
-            <div id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-6 relative">
-                 <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-900/0 to-slate-900/0"></div>
-                 <div id="messages-list" class="relative z-10 space-y-4"></div>
+            <div id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-6 relative custom-scrollbar">
+                 <!-- Background Effect -->
+                 <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-900/10 via-slate-900/0 to-slate-900/0 fixed"></div>
+                 
+                 <div id="messages-list" class="relative z-10 space-y-1 pb-4"></div>
                  <div id="messages-end"></div>
             </div>
 
             <!-- Input -->
-            <div class="p-4 glass-panel border-t border-slate-700/50">
-                <form id="message-form" class="flex gap-4 max-w-4xl mx-auto">
-                    <div class="relative flex-1">
-                        <input type="text" id="message-input" placeholder="Send a transmission..." class="w-full bg-slate-800/80 border border-slate-700 rounded-xl py-3 pl-4 pr-12 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition shadow-inner" autocomplete="off" />
+            <div class="p-4 glass-panel border-t border-slate-700/50 relative z-20">
+                <form id="message-form" class="flex gap-3 max-w-4xl mx-auto">
+                    <div class="relative flex-1 group">
+                        <div class="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                            <i data-lucide="message-square" class="w-5 h-5 text-slate-500 group-focus-within:text-indigo-400 transition-colors"></i>
+                        </div>
+                        <input type="text" id="message-input" placeholder="Transmit a message..." class="w-full bg-slate-800/80 border border-slate-700 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition shadow-inner" autocomplete="off" />
                     </div>
-                    <button type="submit" id="message-submit" class="p-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-white shadow-lg shadow-indigo-500/20 transition-all hover:scale-105">
+                    <button type="submit" id="message-submit" class="p-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-white shadow-lg shadow-indigo-500/20 transition-all hover:scale-105 active:scale-95">
                         <i data-lucide="send" class="w-5 h-5"></i>
                     </button>
                 </form>
@@ -165,17 +200,17 @@
         </div>
 
         <!-- Right Sidebar -->
-        <div id="sidebar" class="fixed inset-y-0 right-0 z-30 w-72 bg-slate-900 border-l border-slate-800 shadow-2xl transform transition-transform duration-300 md:relative md:translate-x-0 translate-x-full">
-            <div class="p-4 border-b border-slate-800 flex justify-between items-center h-16">
+        <div id="sidebar" class="fixed inset-y-0 right-0 z-30 w-80 bg-slate-900 border-l border-slate-800 shadow-2xl transform transition-transform duration-300 md:relative md:translate-x-0 translate-x-full flex flex-col">
+            <div class="p-4 border-b border-slate-800 flex justify-between items-center h-16 bg-slate-900/50 backdrop-blur">
                 <h2 class="font-bold text-slate-300 flex items-center gap-2">
-                    <i data-lucide="users" class="w-4 h-4"></i>
-                    Online - <span id="online-count">0</span>
+                    <i data-lucide="users" class="w-4 h-4 text-indigo-400"></i>
+                    Active Users <span class="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full text-xs" id="online-count">0</span>
                 </h2>
                 <button id="logout-btn" class="p-2 hover:bg-red-500/10 text-slate-500 hover:text-red-400 rounded-lg transition" title="Sign Out">
                     <i data-lucide="log-out" class="w-4 h-4"></i>
                 </button>
             </div>
-            <div id="users-list" class="overflow-y-auto h-[calc(100%-4rem)] p-2 space-y-1">
+            <div id="users-list" class="overflow-y-auto flex-1 p-3 space-y-2 custom-scrollbar">
                 <!-- Users injected here -->
             </div>
         </div>
@@ -183,63 +218,98 @@
 
     <!-- Profile Modal -->
     <div id="profile-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative">
-            <button id="close-modal-btn" class="absolute top-4 right-4 z-10 p-2 bg-black/50 rounded-full hover:bg-white/20 transition text-white">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh]">
+            <button id="close-modal-btn" class="absolute top-4 right-4 z-20 p-2 bg-black/50 rounded-full hover:bg-white/20 transition text-white">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
 
             <!-- Banner -->
-            <div class="h-32 w-full relative bg-slate-800">
-                <img id="modal-banner" src="" class="w-full h-full object-cover" alt="Banner" />
+            <div class="h-32 w-full relative bg-slate-800 shrink-0">
+                <img id="modal-banner" src="" class="w-full h-full object-cover opacity-80" alt="Banner" />
+                <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
             </div>
 
-            <div class="px-6 pb-6 -mt-12 relative">
+            <div class="px-6 pb-6 -mt-12 relative flex-1 overflow-y-auto custom-scrollbar">
                 <div class="flex justify-between items-end mb-4">
-                    <div class="relative">
-                        <img id="modal-avatar" src="" class="w-24 h-24 rounded-2xl border-4 border-slate-900 bg-slate-800 object-cover shadow-lg" alt="Avatar"/>
-                        <div id="modal-status-indicator" class="hidden absolute bottom-1 right-1 w-4 h-4 bg-green-500 border-2 border-slate-900 rounded-full"></div>
+                    <div class="relative group">
+                        <img id="modal-avatar" src="" class="w-24 h-24 rounded-2xl border-4 border-slate-900 bg-slate-800 object-cover shadow-lg group-hover:scale-105 transition-transform" alt="Avatar"/>
+                        <div id="modal-status-indicator" class="hidden absolute bottom-1 right-1 w-5 h-5 bg-green-500 border-4 border-slate-900 rounded-full"></div>
                     </div>
                     
-                    <button id="edit-profile-btn" class="hidden px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition">
-                        Edit Profile
-                    </button>
+                    <div class="flex items-center gap-2 mb-2">
+                         <button id="like-btn" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full transition group">
+                            <i data-lucide="heart" class="w-4 h-4 text-slate-400 group-hover:text-red-500 transition-colors"></i>
+                            <span id="like-count" class="text-xs font-bold text-slate-300">0</span>
+                         </button>
+
+                         <button id="edit-profile-btn" class="hidden px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-full transition shadow-lg shadow-indigo-500/20">
+                            Edit Profile
+                         </button>
+                    </div>
                     
-                    <div id="edit-actions" class="hidden flex gap-2">
-                         <button id="cancel-edit-btn" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-medium rounded-lg transition">Cancel</button>
-                         <button id="save-edit-btn" class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition">Save</button>
+                    <div id="edit-actions" class="hidden flex gap-2 mb-2">
+                         <button id="cancel-edit-btn" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-medium rounded-lg transition">Cancel</button>
+                         <button id="save-edit-btn" class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition flex items-center gap-1">
+                             <i data-lucide="save" class="w-3 h-3"></i> Save
+                         </button>
                     </div>
                 </div>
 
                 <!-- View Mode -->
                 <div id="modal-view-mode">
                     <div class="flex items-center gap-2 mb-2">
-                        <h2 id="modal-username" class="text-xl font-bold text-white"></h2>
+                        <h2 id="modal-username" class="text-2xl font-bold text-white"></h2>
                         <div id="modal-rank-badge"></div>
                     </div>
-                    <p id="modal-bio" class="text-slate-400 text-sm leading-relaxed whitespace-pre-wrap"></p>
-                    <div class="mt-6 pt-4 border-t border-slate-800 flex justify-between text-xs text-slate-500">
-                        <span>Joined recently</span>
-                        <span id="modal-status-text" class="capitalize"></span>
+                    <div class="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 mb-4">
+                        <p id="modal-bio" class="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap"></p>
+                    </div>
+                    <div class="flex justify-between items-center text-xs text-slate-500 font-medium uppercase tracking-wider">
+                        <div class="flex items-center gap-1">
+                            <i data-lucide="signal" class="w-3 h-3"></i>
+                            <span id="modal-status-text" class="capitalize"></span>
+                        </div>
+                        <span>ChatLaxy User</span>
                     </div>
                 </div>
 
                 <!-- Edit Mode -->
-                <div id="modal-edit-mode" class="hidden space-y-4">
+                <div id="modal-edit-mode" class="hidden space-y-5 py-2">
                     <div>
-                        <label class="text-xs text-slate-400 uppercase font-bold">Username</label>
-                        <input type="text" id="edit-username" class="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-sm focus:outline-none focus:border-indigo-500" />
+                         <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Profile Picture</label>
+                         <div class="flex items-center gap-3">
+                             <label class="cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white text-xs py-2 px-3 rounded-lg transition flex items-center gap-2">
+                                 <i data-lucide="upload" class="w-3 h-3"></i> Upload Image
+                                 <input type="file" id="edit-avatar-file" accept="image/*" class="hidden" />
+                             </label>
+                             <span id="avatar-file-name" class="text-xs text-slate-500 truncate max-w-[150px]">No file chosen</span>
+                         </div>
                     </div>
-                    <div>
-                        <label class="text-xs text-slate-400 uppercase font-bold">Bio</label>
-                        <textarea id="edit-bio" class="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-sm focus:outline-none focus:border-indigo-500 h-20 resize-none"></textarea>
+
+                     <div>
+                         <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Banner Image</label>
+                         <div class="flex items-center gap-3">
+                             <label class="cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white text-xs py-2 px-3 rounded-lg transition flex items-center gap-2">
+                                 <i data-lucide="image" class="w-3 h-3"></i> Upload Banner
+                                 <input type="file" id="edit-banner-file" accept="image/*" class="hidden" />
+                             </label>
+                             <span id="banner-file-name" class="text-xs text-slate-500 truncate max-w-[150px]">No file chosen</span>
+                         </div>
                     </div>
+
                     <div>
-                        <label class="text-xs text-slate-400 uppercase font-bold">Avatar URL</label>
-                        <input type="text" id="edit-photo-url" class="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-sm focus:outline-none focus:border-indigo-500" placeholder="https://..." />
+                        <label class="block text-xs font-bold text-slate-400 uppercase mb-2">Bio</label>
+                        <textarea id="edit-bio" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-indigo-500 h-24 resize-none transition" placeholder="Tell the galaxy about yourself..."></textarea>
                     </div>
-                    <div>
-                        <label class="text-xs text-slate-400 uppercase font-bold">Banner URL</label>
-                        <input type="text" id="edit-banner-url" class="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-sm focus:outline-none focus:border-indigo-500" placeholder="https://..." />
+                    
+                    <div id="upload-progress" class="hidden">
+                        <div class="flex items-center justify-between text-xs text-indigo-400 mb-1">
+                            <span>Uploading assets...</span>
+                            <i data-lucide="loader" class="w-3 h-3 animate-spin"></i>
+                        </div>
+                        <div class="h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div class="h-full bg-indigo-500 animate-pulse w-full"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -264,6 +334,7 @@
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
+        const storage = firebase.storage();
         
         // --- State ---
         let currentUser = null;
@@ -272,6 +343,7 @@
         let authMode = 'login';
         let listeners = [];
         let heartbeatInterval = null;
+        let globalUsersCache = [];
 
         // --- DOM Elements ---
         const screens = {
@@ -280,6 +352,13 @@
             app: document.getElementById('app-screen')
         };
         
+        // --- Icons ---
+        function refreshIcons() {
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+        }
+        
         // --- Rank Logic ---
         function getRankColor(rank) {
             switch (rank) {
@@ -287,6 +366,7 @@
                 case 'Owner': return 'text-yellow-400 shadow-yellow-400/50';
                 case 'Super-VIP': return 'text-pink-500 shadow-pink-500/50';
                 case 'VIP': return 'text-purple-400 shadow-purple-400/50';
+                case 'User': return 'text-indigo-400 shadow-indigo-500/50';
                 default: return 'text-slate-400';
             }
         }
@@ -294,15 +374,18 @@
         function getRankBadgeHTML(rank) {
              const color = getRankColor(rank).split(' ')[0];
              let icon = '';
-             if (rank === 'Developer') icon = 'code';
-             else if (rank === 'Owner') icon = 'crown';
-             else if (rank === 'Super-VIP') icon = 'zap';
-             else if (rank === 'VIP') icon = 'shield';
+             let bg = 'bg-slate-800/50 border-slate-700';
              
+             if (rank === 'Developer') { icon = 'code-2'; bg = 'bg-red-500/10 border-red-500/20'; }
+             else if (rank === 'Owner') { icon = 'crown'; bg = 'bg-yellow-500/10 border-yellow-500/20'; }
+             else if (rank === 'Super-VIP') { icon = 'zap'; bg = 'bg-pink-500/10 border-pink-500/20'; }
+             else if (rank === 'VIP') { icon = 'star'; bg = 'bg-purple-500/10 border-purple-500/20'; }
+             else if (rank === 'User') { return ''; } // No badge for basic users if preferred, but user said "everyone gets VIP"
+
              if (!icon) return '';
 
              return `
-                <span class="flex items-center text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-800/50 border border-slate-700 ${color} ml-2">
+                <span class="flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${bg} ${color} ml-2 shadow-sm">
                     <i data-lucide="${icon}" class="w-3 h-3 mr-1"></i> ${rank}
                 </span>
              `;
@@ -319,17 +402,6 @@
                 .replace(/'/g, "&#039;");
         }
 
-        function refreshIcons() {
-            if (window.lucide) {
-                lucide.createIcons();
-            }
-        }
-
-        // Initialize icons immediately for static content
-        document.addEventListener('DOMContentLoaded', () => {
-            refreshIcons();
-        });
-
         // --- Auth & State Management ---
         auth.onAuthStateChanged(async (user) => {
             currentUser = user;
@@ -337,12 +409,13 @@
                 // User is logged in
                 const userRef = db.collection('users').doc(user.uid);
                 
-                // Status Heartbeat
                 const updateStatus = async () => {
-                    await userRef.set({
-                        status: 'online',
-                        lastSeen: firebase.firestore.FieldValue.serverTimestamp()
-                    }, { merge: true });
+                    try {
+                        await userRef.set({
+                            status: 'online',
+                            lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+                        }, { merge: true });
+                    } catch(e) { console.log('Auth transition, status update suppressed'); }
                 };
                 updateStatus();
                 heartbeatInterval = setInterval(updateStatus, 60000);
@@ -351,7 +424,17 @@
                 const unsubProfile = userRef.onSnapshot(doc => {
                     if (doc.exists) {
                         currentProfile = doc.data();
+                        
+                        // Handle case where profile deleted by Dev
+                        if (!currentProfile) {
+                           auth.signOut();
+                           return;
+                        }
+
                         renderHeader();
+                    } else {
+                        // Doc might have been deleted
+                        auth.signOut();
                     }
                 });
                 listeners.push(unsubProfile);
@@ -393,7 +476,6 @@
                 screens.app.classList.add('hidden');
                 screens.auth.classList.remove('hidden');
                 
-                // Refresh icons in auth screen
                 refreshIcons();
             }
         });
@@ -404,12 +486,12 @@
             if (!currentProfile) return;
             const container = document.getElementById('current-user-header');
             container.innerHTML = `
-                <button onclick="openProfile(null, true)" class="flex items-center gap-3 hover:bg-white/5 p-1.5 rounded-lg transition">
+                <button onclick="openProfile(null, true)" class="flex items-center gap-3 hover:bg-slate-800/50 p-1.5 pr-3 rounded-full transition border border-transparent hover:border-slate-700/50">
+                    <img src="${currentProfile.photoURL || DEFAULT_AVATAR}" class="w-8 h-8 rounded-full border border-slate-600 object-cover" />
                     <div class="text-right hidden sm:block">
-                        <div class="text-sm font-bold text-white">${escapeHtml(currentProfile.username)}</div>
-                        <div class="text-xs ${getRankColor(currentProfile.rank)}">${currentProfile.rank}</div>
+                        <div class="text-sm font-bold text-white leading-tight">${escapeHtml(currentProfile.username)}</div>
+                        <div class="text-[10px] ${getRankColor(currentProfile.rank).split(' ')[0]} font-medium">${currentProfile.rank}</div>
                     </div>
-                    <img src="${currentProfile.photoURL || DEFAULT_AVATAR}" class="w-9 h-9 rounded-full border border-slate-600 object-cover" />
                 </button>
             `;
         }
@@ -417,38 +499,36 @@
         function renderMessages(messages) {
             const list = document.getElementById('messages-list');
             
-            // Re-rendering fully for simplicity (in a real vanilla app, we'd diff)
             let html = '';
             messages.forEach((msg, idx) => {
                 const isMe = currentUser && msg.uid === currentUser.uid;
                 const isConsecutive = idx > 0 && messages[idx - 1].uid === msg.uid;
                 
-                const rankBadge = getRankBadgeHTML(msg.rank);
-                const time = msg.createdAt ? new Date(msg.createdAt.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '...';
+                // If it's the same user as before, we don't show header info again, unless it's a new block
+                const showHeader = !isConsecutive;
 
-                // We inject a dataset to handle clicking the avatar to view profile
-                // We'll fake the profile object for click handler by storing basic data in data attrs
-                const userDataAttr = escapeHtml(JSON.stringify({
-                    uid: msg.uid, username: msg.username, photoURL: msg.photoURL, rank: msg.rank, bio: '...', bannerURL: ''
-                }));
+                // Rank Badge
+                const rankBadge = getRankBadgeHTML(msg.rank);
+                const time = msg.createdAt ? new Date(msg.createdAt.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
 
                 html += `
-                <div class="flex gap-4 ${isMe ? 'flex-row-reverse' : ''} group relative z-10">
-                    ${!isConsecutive ? `
-                        <div class="cursor-pointer transition hover:scale-105" onclick="handleAvatarClick('${msg.uid}')">
-                            <img src="${msg.photoURL || DEFAULT_AVATAR}" class="w-10 h-10 rounded-full border-2 border-slate-700 object-cover" />
+                <div class="flex gap-3 ${isMe ? 'flex-row-reverse' : ''} group relative mb-1 animate-fade-in">
+                    ${showHeader ? `
+                        <div class="cursor-pointer transition hover:scale-105 shrink-0" onclick="handleAvatarClick('${msg.uid}')">
+                            <img src="${msg.photoURL || DEFAULT_AVATAR}" class="w-9 h-9 rounded-full border border-slate-700 object-cover shadow-sm" />
                         </div>
-                    ` : '<div class="w-10"></div>'}
+                    ` : '<div class="w-9 shrink-0"></div>'}
                     
-                    <div class="flex flex-col max-w-[70%] ${isMe ? 'items-end' : 'items-start'}">
-                        ${!isConsecutive ? `
-                            <div class="flex items-center gap-2 mb-1">
-                                <span class="text-sm font-bold ${isMe ? 'text-indigo-400' : 'text-slate-300'}">${escapeHtml(msg.username)}</span>
+                    <div class="flex flex-col max-w-[75%] ${isMe ? 'items-end' : 'items-start'}">
+                        ${showHeader ? `
+                            <div class="flex items-center gap-2 mb-1 px-1">
+                                <span class="text-xs font-bold ${isMe ? 'text-indigo-400' : 'text-slate-300'} hover:underline cursor-pointer" onclick="handleAvatarClick('${msg.uid}')">${escapeHtml(msg.username)}</span>
                                 ${rankBadge}
                                 <span class="text-[10px] text-slate-600">${time}</span>
                             </div>
                         ` : ''}
-                        <div class="px-4 py-2 rounded-2xl text-sm leading-relaxed shadow-sm ${isMe ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-tl-none'}">
+                        <div class="px-4 py-2 rounded-2xl text-sm leading-relaxed shadow-sm break-words relative group-hover:shadow-md transition-shadow
+                             ${isMe ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-slate-800/80 border border-slate-700/50 text-slate-200 rounded-tl-sm'}">
                             ${escapeHtml(msg.text)}
                         </div>
                     </div>
@@ -460,9 +540,6 @@
             document.getElementById('messages-end').scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Global list of users to find profile data
-        let globalUsersCache = [];
-
         function renderOnlineUsers(users) {
             globalUsersCache = users;
             const container = document.getElementById('users-list');
@@ -471,18 +548,24 @@
             let html = '';
             users.forEach(u => {
                 const rankBadge = getRankBadgeHTML(u.rank);
+                const isDev = u.rank === 'Developer';
+                const glow = isDev ? 'shadow-[0_0_10px_rgba(239,68,68,0.15)] border-red-500/20' : 'border-transparent hover:border-slate-700';
+
                 html += `
-                    <button onclick="handleAvatarClick('${u.uid}')" class="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800 transition group text-left">
+                    <button onclick="handleAvatarClick('${u.uid}')" class="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-800/50 transition group text-left border ${glow}">
                         <div class="relative">
-                            <img src="${u.photoURL || DEFAULT_AVATAR}" class="w-10 h-10 rounded-full bg-slate-800 object-cover" />
+                            <img src="${u.photoURL || DEFAULT_AVATAR}" class="w-10 h-10 rounded-full bg-slate-800 object-cover border border-slate-700" />
                             <div class="absolute bottom-0 right-0 w-3 h-3 border-2 border-slate-900 rounded-full ${u.status === 'online' ? 'bg-green-500' : 'bg-slate-500'}"></div>
                         </div>
                         <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-1">
+                            <div class="flex items-center gap-1.5">
                                 <span class="font-medium text-slate-200 truncate text-sm">${escapeHtml(u.username)}</span>
-                                ${rankBadge}
+                                ${isDev ? '<i data-lucide="code-2" class="w-3 h-3 text-red-500"></i>' : ''}
                             </div>
-                            <div class="text-xs text-slate-500 truncate">${u.status}</div>
+                            <div class="flex items-center gap-1 text-xs text-slate-500">
+                                <span class="truncate">${u.status}</span>
+                                ${u.rank !== 'User' ? `<span class="w-1 h-1 bg-slate-600 rounded-full"></span> <span class="${getRankColor(u.rank).split(' ')[0]}">${u.rank}</span>` : ''}
+                            </div>
                         </div>
                     </button>
                 `;
@@ -493,22 +576,29 @@
 
         // --- Interaction Logic ---
         
-        // Handle avatar click by finding user in cache or creating placeholder
         window.handleAvatarClick = (uid) => {
             const user = globalUsersCache.find(u => u.uid === uid) || {
                 uid: uid,
-                username: 'User',
+                username: 'Unknown User',
                 photoURL: DEFAULT_AVATAR,
                 bannerURL: DEFAULT_BANNER,
-                bio: "Offline or info not available.",
+                bio: "Offline or not recently active.",
                 rank: 'User',
-                status: 'offline'
+                status: 'offline',
+                likedBy: []
             };
             openProfile(user);
         };
 
         function openProfile(user, isMe = false) {
             if (isMe && currentProfile) user = currentProfile;
+            
+            // Re-fetch latest like count if possible, otherwise use passed data
+            if (!isMe && user.uid) {
+                const liveUser = globalUsersCache.find(u => u.uid === user.uid);
+                if (liveUser) user = liveUser;
+            }
+
             selectedUser = user;
             
             // Populate Modal
@@ -523,20 +613,39 @@
             if (user.status === 'online') indicator.classList.remove('hidden');
             else indicator.classList.add('hidden');
 
-            // Setup Edit Fields
-            document.getElementById('edit-username').value = user.username;
+            // Likes
+            const likes = user.likedBy ? user.likedBy.length : 0;
+            document.getElementById('like-count').textContent = likes;
+            const likeBtnIcon = document.querySelector('#like-btn i');
+            
+            // Check if current user liked this profile
+            if (currentUser && user.likedBy && user.likedBy.includes(currentUser.uid)) {
+                likeBtnIcon.classList.add('like-btn-active', 'text-red-500');
+                likeBtnIcon.classList.remove('text-slate-400');
+            } else {
+                likeBtnIcon.classList.remove('like-btn-active', 'text-red-500');
+                likeBtnIcon.classList.add('text-slate-400');
+            }
+
+            // Edit Fields Setup
+            // (Only text fields, files are inputs)
             document.getElementById('edit-bio').value = user.bio || '';
-            document.getElementById('edit-photo-url').value = user.photoURL || '';
-            document.getElementById('edit-banner-url').value = user.bannerURL || '';
+            document.getElementById('avatar-file-name').textContent = "No file chosen";
+            document.getElementById('banner-file-name').textContent = "No file chosen";
+            document.getElementById('edit-avatar-file').value = "";
+            document.getElementById('edit-banner-file').value = "";
 
             // Handle Buttons
             const editBtn = document.getElementById('edit-profile-btn');
             const editActions = document.getElementById('edit-actions');
             const viewMode = document.getElementById('modal-view-mode');
             const editMode = document.getElementById('modal-edit-mode');
+            const uploadProgress = document.getElementById('upload-progress');
 
             if (currentUser && user.uid === currentUser.uid) {
                 editBtn.classList.remove('hidden');
+                // Like button disabled for self? maybe, but prompt says "like profiles", usually you can't like yourself but I'll leave it open or disable. Let's allow it for fun or disable logic:
+                // document.getElementById('like-btn').disabled = true; 
             } else {
                 editBtn.classList.add('hidden');
             }
@@ -546,12 +655,61 @@
             editMode.classList.add('hidden');
             editBtn.classList.remove('hidden-force');
             viewMode.classList.remove('hidden');
+            uploadProgress.classList.add('hidden');
 
             document.getElementById('profile-modal').classList.remove('hidden');
             refreshIcons();
         }
 
+        async function uploadFile(file, path) {
+             const storageRef = storage.ref();
+             const fileRef = storageRef.child(path);
+             await fileRef.put(file);
+             return await fileRef.getDownloadURL();
+        }
+
         // --- Event Listeners ---
+
+        // File Inputs
+        document.getElementById('edit-avatar-file').addEventListener('change', function() {
+            if(this.files[0]) document.getElementById('avatar-file-name').textContent = this.files[0].name;
+        });
+        document.getElementById('edit-banner-file').addEventListener('change', function() {
+            if(this.files[0]) document.getElementById('banner-file-name').textContent = this.files[0].name;
+        });
+
+        // Like Button
+        document.getElementById('like-btn').addEventListener('click', async () => {
+            if (!currentUser || !selectedUser) return;
+            const uid = selectedUser.uid;
+            const userRef = db.collection('users').doc(uid);
+            
+            // Optimistic Update
+            const likeBtnIcon = document.querySelector('#like-btn i');
+            const likeCountEl = document.getElementById('like-count');
+            let currentCount = parseInt(likeCountEl.textContent);
+            const isLiked = likeBtnIcon.classList.contains('like-btn-active');
+
+            if (isLiked) {
+                // Unlike
+                likeBtnIcon.classList.remove('like-btn-active', 'text-red-500');
+                likeBtnIcon.classList.add('text-slate-400');
+                likeCountEl.textContent = Math.max(0, currentCount - 1);
+                await userRef.update({
+                    likedBy: firebase.firestore.FieldValue.arrayRemove(currentUser.uid)
+                });
+            } else {
+                // Like
+                likeBtnIcon.classList.add('like-btn-active', 'text-red-500');
+                likeBtnIcon.classList.remove('text-slate-400');
+                likeBtnIcon.classList.add('animate-pulse'); // quick pulse
+                setTimeout(() => likeBtnIcon.classList.remove('animate-pulse'), 500);
+                likeCountEl.textContent = currentCount + 1;
+                await userRef.update({
+                    likedBy: firebase.firestore.FieldValue.arrayUnion(currentUser.uid)
+                });
+            }
+        });
 
         // Auth
         const authForm = document.getElementById('auth-form');
@@ -567,13 +725,11 @@
                 authSubmitBtn.textContent = 'Initialize Protocol';
                 document.getElementById('auth-switch-text').textContent = "Already have an account? ";
                 authSwitchBtn.textContent = "Login";
-                document.getElementById('auth-username').required = true;
             } else {
                 signupFields.classList.add('hidden');
                 authSubmitBtn.textContent = 'Enter Command';
                 document.getElementById('auth-switch-text').textContent = "Don't have an account? ";
                 authSwitchBtn.textContent = "Sign up";
-                document.getElementById('auth-username').required = false;
             }
         });
 
@@ -581,20 +737,32 @@
             e.preventDefault();
             const email = document.getElementById('auth-email').value;
             const password = document.getElementById('auth-password').value;
-            const username = document.getElementById('auth-username').value;
+            const usernameInput = document.getElementById('auth-username');
+            const username = usernameInput.value.trim();
             const errorDiv = document.getElementById('auth-error');
+            const errorMsg = document.getElementById('auth-error-msg');
 
             errorDiv.classList.add('hidden');
+            authSubmitBtn.disabled = true;
+            authSubmitBtn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin mx-auto"></i>';
+            refreshIcons();
             
             try {
                 if (authMode === 'login') {
                     await auth.signInWithEmailAndPassword(email, password);
                 } else {
                     if (username.length < 3) throw new Error("Username must be at least 3 chars");
+                    
+                    // Check Unique Username
+                    const usernameCheck = await db.collection('users').where('username', '==', username).get();
+                    if (!usernameCheck.empty) {
+                        throw new Error("Username already taken by another entity.");
+                    }
+
                     const cred = await auth.createUserWithEmailAndPassword(email, password);
                     const uid = cred.user.uid;
                     
-                    let rank = 'User';
+                    let rank = 'VIP'; // Default rank VIP per request
                     if (username === 'Developer') rank = 'Developer';
 
                     await db.collection('users').doc(uid).set({
@@ -606,13 +774,16 @@
                         bio: 'New to ChatLaxy!',
                         rank,
                         status: 'online',
-                        lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+                        lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
+                        likedBy: []
                     });
                     await cred.user.updateProfile({ displayName: username, photoURL: DEFAULT_AVATAR });
                 }
             } catch (err) {
-                errorDiv.textContent = err.message;
+                errorMsg.textContent = err.message;
                 errorDiv.classList.remove('hidden');
+                authSubmitBtn.disabled = false;
+                authSubmitBtn.textContent = authMode === 'login' ? 'Enter Command' : 'Initialize Protocol';
             }
         });
 
@@ -624,7 +795,7 @@
             sb.classList.toggle('translate-x-full');
         });
 
-        // Chat
+        // Chat & Commands
         document.getElementById('message-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const input = document.getElementById('message-input');
@@ -632,6 +803,32 @@
             if (!text || !currentUser || !currentProfile) return;
 
             input.value = '';
+
+            // Command Handling
+            if (text.startsWith('/')) {
+                if (currentProfile.rank === 'Developer') {
+                     if (text === '/clear') {
+                         const batch = db.batch();
+                         const snap = await db.collection('messages').get();
+                         snap.forEach(doc => batch.delete(doc.ref));
+                         await batch.commit();
+                         console.log('Chat cleared');
+                     } else if (text.startsWith('/clear delete ')) {
+                         const targetName = text.replace('/clear delete ', '').trim();
+                         if (targetName) {
+                             const snap = await db.collection('users').where('username', '==', targetName).get();
+                             const batch = db.batch();
+                             snap.forEach(doc => batch.delete(doc.ref));
+                             await batch.commit();
+                             console.log(`Deleted user ${targetName}`);
+                         }
+                     }
+                }
+                // Commands are not sent as messages
+                return;
+            }
+
+            // Normal Message
             await db.collection('messages').add({
                 text,
                 uid: currentUser.uid,
@@ -660,33 +857,52 @@
 
         document.getElementById('save-edit-btn').addEventListener('click', async () => {
             if (!currentUser) return;
-            const newUsername = document.getElementById('edit-username').value;
+            
+            const btn = document.getElementById('save-edit-btn');
+            const progress = document.getElementById('upload-progress');
+            
+            btn.disabled = true;
+            progress.classList.remove('hidden');
+
             const newBio = document.getElementById('edit-bio').value;
-            const newPhoto = document.getElementById('edit-photo-url').value;
-            const newBanner = document.getElementById('edit-banner-url').value;
+            const avatarFile = document.getElementById('edit-avatar-file').files[0];
+            const bannerFile = document.getElementById('edit-banner-file').files[0];
 
             try {
-                await db.collection('users').doc(currentUser.uid).update({
-                    username: newUsername,
-                    bio: newBio,
-                    photoURL: newPhoto,
-                    bannerURL: newBanner
-                });
-                
-                // Update local auth profile too
-                if (newUsername || newPhoto) {
-                    await currentUser.updateProfile({
-                        displayName: newUsername || currentUser.displayName,
-                        photoURL: newPhoto || currentUser.photoURL
-                    });
+                let newPhotoURL = currentProfile.photoURL;
+                let newBannerURL = currentProfile.bannerURL;
+
+                if (avatarFile) {
+                    newPhotoURL = await uploadFile(avatarFile, `avatars/${currentUser.uid}/${Date.now()}_${avatarFile.name}`);
                 }
                 
-                // Close modal or refresh it (snapshot listener will handle UI update of header/list, we just reset modal state)
+                if (bannerFile) {
+                    newBannerURL = await uploadFile(bannerFile, `banners/${currentUser.uid}/${Date.now()}_${bannerFile.name}`);
+                }
+
+                await db.collection('users').doc(currentUser.uid).update({
+                    bio: newBio,
+                    photoURL: newPhotoURL,
+                    bannerURL: newBannerURL
+                });
+                
+                if (newPhotoURL !== currentUser.photoURL) {
+                    await currentUser.updateProfile({ photoURL: newPhotoURL });
+                }
+                
                 document.getElementById('profile-modal').classList.add('hidden');
             } catch (err) {
                 console.error(err);
-                alert("Error updating profile");
+                alert("Error updating profile: " + err.message);
+            } finally {
+                btn.disabled = false;
+                progress.classList.add('hidden');
             }
+        });
+
+        // Initialize Icons
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshIcons();
         });
 
     </script>
