@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChatLaxy - Admin Panel</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <style>
+      body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; }
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: #1e293b; }
+      ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+      .glass-panel { background: rgba(30, 41, 59, 0.75); backdrop-filter: blur(12px); border: 1px solid rgba(148, 163, 184, 0.1); }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <div id="loading" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900">
+        <i data-lucide="loader-2" class="w-10 h-10 animate-spin text-indigo-500"></i>
+    </div>
+
+    <header class="h-16 glass-panel flex items-center justify-between px-6 z-20">
+        <div class="flex items-center gap-3">
+            <h1 class="font-bold text-xl text-white flex items-center gap-2">
+                <i data-lucide="shield-alert" class="text-red-500"></i> Admin Panel
+            </h1>
+        </div>
+        <a href="index.html" class="text-sm text-slate-400 hover:text-white flex items-center gap-1">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Chat
+        </a>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden">
+        <!-- Sidebar -->
+        <div class="w-64 bg-slate-900 border-r border-slate-800 flex flex-col">
+            <div class="p-4 font-bold text-xs uppercase text-slate-500 tracking-wider">Navigation</div>
+            <button onclick="showTab('users')" class="flex items-center gap-3 px-6 py-3 text-slate-300 hover:bg-slate-800 transition text-left border-l-2 border-transparent hover:border-indigo-500 tab-btn" id="btn-users">
+                <i data-lucide="users" class="w-4 h-4"></i> User Management
+            </button>
+            <button onclick="showTab('logs')" class="flex items-center gap-3 px-6 py-3 text-slate-300 hover:bg-slate-800 transition text-left border-l-2 border-transparent hover:border-indigo-500 tab-btn" id="btn-logs">
+                <i data-lucide="file-text" class="w-4 h-4"></i> Chat Logs
+            </button>
+        </div>
+
+        <!-- Main -->
+        <div class="flex-1 bg-slate-900/50 p-6 overflow-y-auto">
+            
+            <!-- Users Tab -->
+            <div id="tab-users" class="space-y-6">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold">All Users</h2>
+                    <input type="text" id="user-search" placeholder="Search username..." class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-indigo-500">
+                </div>
+                <div class="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-slate-800 text-xs uppercase text-slate-400">
+                            <tr>
+                                <th class="p-4">User</th>
+                                <th class="p-4">Rank</th>
+                                <th class="p-4">Status</th>
+                                <th class="p-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body" class="text-sm divide-y divide-slate-700">
+                            <!-- Injected -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Logs Tab -->
+            <div id="tab-logs" class="hidden space-y-6 h-full flex flex-col">
+                <div class="flex justify-between items-center shrink-0">
+                    <h2 class="text-2xl font-bold">Live Chat Logs</h2>
+                    <button onclick="clearChat()" class="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 px-3 py-1.5 rounded text-xs font-bold uppercase">Nuke Chat</button>
+                </div>
+                <div class="flex-1 bg-black/30 rounded-xl border border-slate-700 p-4 font-mono text-xs overflow-y-auto space-y-1" id="logs-container">
+                    <!-- Logs -->
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDncManQICLPVT8WuMVO5kB-Am32VI12wo",
+            authDomain: "chatlaxy-pro.firebaseapp.com",
+            projectId: "chatlaxy-pro",
+            storageBucket: "chatlaxy-pro.firebasestorage.app",
+            messagingSenderId: "807800533954",
+            appId: "1:807800533954:web:517cd7d074eb50b9cb9c5b"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        let allUsers = [];
+
+        auth.onAuthStateChanged(async (user) => {
+            if (!user) return window.location.href = 'index.html';
+            
+            const doc = await db.collection('users').doc(user.uid).get();
+            if (!doc.exists) return window.location.href = 'index.html';
+            
+            const data = doc.data();
+            if (data.rank !== 'Developer' && data.rank !== 'Owner') {
+                alert("Access Denied: High Command Only.");
+                return window.location.href = 'index.html';
+            }
+
+            document.getElementById('loading').classList.add('hidden');
+            initAdmin();
+        });
+
+        function initAdmin() {
+            // Listen to users
+            db.collection('users').onSnapshot(snap => {
+                allUsers = snap.docs.map(d => d.data());
+                renderUsers();
+            });
+
+            // Listen to logs
+            db.collection('messages').orderBy('createdAt', 'desc').limit(100).onSnapshot(snap => {
+                const logs = document.getElementById('logs-container');
+                logs.innerHTML = '';
+                snap.docs.forEach(doc => {
+                    const m = doc.data();
+                    const div = document.createElement('div');
+                    div.className = "flex gap-2 hover:bg-white/5 p-1 rounded";
+                    div.innerHTML = `
+                        <span class="text-slate-500">[${m.createdAt ? new Date(m.createdAt.seconds * 1000).toLocaleTimeString() : 'PENDING'}]</span>
+                        <span class="text-indigo-400 font-bold">${m.username}:</span>
+                        <span class="text-slate-300 break-all">${m.text}</span>
+                        <button onclick="deleteMsg('${doc.id}')" class="ml-auto text-red-500 hover:text-red-400 px-2">DEL</button>
+                    `;
+                    logs.appendChild(div);
+                });
+            });
+            
+            lucide.createIcons();
+        }
+
+        function renderUsers() {
+            const tbody = document.getElementById('users-table-body');
+            const filter = document.getElementById('user-search').value.toLowerCase();
+            
+            tbody.innerHTML = allUsers.filter(u => u.username.toLowerCase().includes(filter)).map(u => `
+                <tr class="hover:bg-slate-700/30 transition">
+                    <td class="p-4 flex items-center gap-3">
+                        <img src="${u.photoURL}" class="w-8 h-8 rounded-full bg-slate-800 object-cover">
+                        <span class="font-bold text-white">${u.username}</span>
+                    </td>
+                    <td class="p-4">
+                        <select onchange="updateRank('${u.uid}', this.value)" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs">
+                            <option value="User" ${u.rank === 'User' ? 'selected' : ''}>User</option>
+                            <option value="VIP" ${u.rank === 'VIP' ? 'selected' : ''}>VIP</option>
+                            <option value="Super-VIP" ${u.rank === 'Super-VIP' ? 'selected' : ''}>Super-VIP</option>
+                            <option value="Owner" ${u.rank === 'Owner' ? 'selected' : ''}>Owner</option>
+                            <option value="Developer" ${u.rank === 'Developer' ? 'selected' : ''}>Developer</option>
+                        </select>
+                    </td>
+                    <td class="p-4 text-slate-400">${u.status || 'offline'}</td>
+                    <td class="p-4">
+                        <button onclick="deleteUser('${u.uid}')" class="text-red-500 hover:underline text-xs">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        document.getElementById('user-search').addEventListener('input', renderUsers);
+
+        window.updateRank = async (uid, newRank) => {
+            await db.collection('users').doc(uid).update({ rank: newRank });
+        };
+
+        window.deleteUser = async (uid) => {
+            if(confirm('Are you sure you want to banish this user?')) {
+                 await db.collection('users').doc(uid).delete();
+            }
+        };
+
+        window.deleteMsg = async (id) => {
+            await db.collection('messages').doc(id).delete();
+        };
+
+        window.clearChat = async () => {
+            if(confirm('Nuke all chat messages?')) {
+                const snap = await db.collection('messages').get();
+                const batch = db.batch();
+                snap.forEach(d => batch.delete(d.ref));
+                await batch.commit();
+            }
+        };
+
+        window.showTab = (tab) => {
+            document.getElementById('tab-users').classList.add('hidden');
+            document.getElementById('tab-logs').classList.add('hidden');
+            document.getElementById('tab-' + tab).classList.remove('hidden');
+            
+            // Basic active state for buttons
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('border-indigo-500', 'bg-slate-800'));
+            document.getElementById('btn-' + tab).classList.add('border-indigo-500', 'bg-slate-800');
+        }
+
+        // Init
+        showTab('users');
+        lucide.createIcons();
+    </script>
+</body>
+</html>
