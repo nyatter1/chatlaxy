@@ -1,11 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ChatLaxy - Galactic Chat</title>
+    
+    <!-- Styles -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Firebase SDKs (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics-compat.js"></script>
+
     <style>
       body {
         font-family: 'Inter', sans-serif;
@@ -43,21 +55,629 @@
         from { opacity: 0; transform: translateY(10px); }
         to { opacity: 1; transform: translateY(0); }
       }
+
+      .hidden-force {
+        display: none !important;
+      }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "firebase/": "https://esm.sh/firebase@^12.8.0/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
-  }
-}
-</script>
 </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
+<body class="overflow-hidden h-screen w-screen relative">
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="absolute inset-0 z-50 flex items-center justify-center bg-slate-900 text-indigo-500">
+        <i data-lucide="loader-2" class="w-10 h-10 animate-spin"></i>
+    </div>
+
+    <!-- Auth Screen -->
+    <div id="auth-screen" class="hidden absolute inset-0 z-40 flex items-center justify-center bg-[url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=2072&auto=format&fit=crop')] bg-cover bg-center">
+        <div class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm"></div>
+        <div class="relative z-10 w-full max-w-md p-8 glass-panel rounded-2xl shadow-2xl mx-4">
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 mb-2">
+                    ChatLaxy
+                </h1>
+                <p class="text-slate-400">Join the galactic conversation.</p>
+            </div>
+
+            <div id="auth-error" class="hidden bg-red-500/20 border border-red-500/50 text-red-200 p-3 rounded-lg mb-4 text-sm text-center"></div>
+
+            <form id="auth-form" class="space-y-4">
+                <div id="signup-fields" class="hidden">
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Username</label>
+                    <div class="relative">
+                        <i data-lucide="user" class="absolute left-3 top-3 w-5 h-5 text-slate-500"></i>
+                        <input type="text" id="auth-username" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition" placeholder="Enter username" />
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1">* Set username to 'Developer' for Dev rank.</p>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Email</label>
+                    <div class="relative">
+                        <i data-lucide="users" class="absolute left-3 top-3 w-5 h-5 text-slate-500"></i>
+                        <input type="email" id="auth-email" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition" placeholder="name@example.com" />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase mb-1">Password</label>
+                    <div class="relative">
+                        <i data-lucide="shield" class="absolute left-3 top-3 w-5 h-5 text-slate-500"></i>
+                        <input type="password" id="auth-password" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition" placeholder="••••••••" />
+                    </div>
+                </div>
+
+                <button type="submit" id="auth-submit-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg shadow-lg hover:shadow-indigo-500/25 transition-all transform hover:scale-[1.02]">
+                    Enter Command
+                </button>
+            </form>
+
+            <div class="mt-6 text-center text-sm text-slate-400">
+                <span id="auth-switch-text">Don't have an account? </span>
+                <button id="auth-switch-btn" class="text-indigo-400 hover:text-indigo-300 font-medium underline underline-offset-4">
+                    Sign up
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Screen -->
+    <div id="app-screen" class="hidden flex h-full bg-slate-900">
+        <!-- Mobile Sidebar Toggle -->
+        <button id="mobile-menu-btn" class="md:hidden fixed top-4 left-4 z-40 p-2 bg-slate-800 rounded-lg text-white shadow-lg">
+            <i data-lucide="menu" class="w-6 h-6"></i>
+        </button>
+
+        <!-- Main Chat Area -->
+        <div class="flex-1 flex flex-col h-full relative">
+            <!-- Header -->
+            <header class="h-16 glass-panel border-b-0 border-r-0 border-l-0 border-slate-700/50 flex items-center justify-between px-6 z-20 md:pl-6 pl-16">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="globe" class="w-6 h-6 text-indigo-500 animate-pulse"></i>
+                    <h1 class="font-bold text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-pink-400">
+                        ChatLaxy <span class="text-xs text-slate-500 font-normal ml-2">Global Channel</span>
+                    </h1>
+                </div>
+                <div class="flex items-center gap-4" id="current-user-header">
+                    <!-- Injected via JS -->
+                </div>
+            </header>
+
+            <!-- Messages -->
+            <div id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-6 relative">
+                 <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-900/0 to-slate-900/0"></div>
+                 <div id="messages-list" class="relative z-10 space-y-4"></div>
+                 <div id="messages-end"></div>
+            </div>
+
+            <!-- Input -->
+            <div class="p-4 glass-panel border-t border-slate-700/50">
+                <form id="message-form" class="flex gap-4 max-w-4xl mx-auto">
+                    <div class="relative flex-1">
+                        <input type="text" id="message-input" placeholder="Send a transmission..." class="w-full bg-slate-800/80 border border-slate-700 rounded-xl py-3 pl-4 pr-12 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition shadow-inner" autocomplete="off" />
+                    </div>
+                    <button type="submit" id="message-submit" class="p-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-white shadow-lg shadow-indigo-500/20 transition-all hover:scale-105">
+                        <i data-lucide="send" class="w-5 h-5"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Right Sidebar -->
+        <div id="sidebar" class="fixed inset-y-0 right-0 z-30 w-72 bg-slate-900 border-l border-slate-800 shadow-2xl transform transition-transform duration-300 md:relative md:translate-x-0 translate-x-full">
+            <div class="p-4 border-b border-slate-800 flex justify-between items-center h-16">
+                <h2 class="font-bold text-slate-300 flex items-center gap-2">
+                    <i data-lucide="users" class="w-4 h-4"></i>
+                    Online - <span id="online-count">0</span>
+                </h2>
+                <button id="logout-btn" class="p-2 hover:bg-red-500/10 text-slate-500 hover:text-red-400 rounded-lg transition" title="Sign Out">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div id="users-list" class="overflow-y-auto h-[calc(100%-4rem)] p-2 space-y-1">
+                <!-- Users injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div id="profile-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative">
+            <button id="close-modal-btn" class="absolute top-4 right-4 z-10 p-2 bg-black/50 rounded-full hover:bg-white/20 transition text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <!-- Banner -->
+            <div class="h-32 w-full relative bg-slate-800">
+                <img id="modal-banner" src="" class="w-full h-full object-cover" alt="Banner" />
+            </div>
+
+            <div class="px-6 pb-6 -mt-12 relative">
+                <div class="flex justify-between items-end mb-4">
+                    <div class="relative">
+                        <img id="modal-avatar" src="" class="w-24 h-24 rounded-2xl border-4 border-slate-900 bg-slate-800 object-cover shadow-lg" alt="Avatar"/>
+                        <div id="modal-status-indicator" class="hidden absolute bottom-1 right-1 w-4 h-4 bg-green-500 border-2 border-slate-900 rounded-full"></div>
+                    </div>
+                    
+                    <button id="edit-profile-btn" class="hidden px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition">
+                        Edit Profile
+                    </button>
+                    
+                    <div id="edit-actions" class="hidden flex gap-2">
+                         <button id="cancel-edit-btn" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs font-medium rounded-lg transition">Cancel</button>
+                         <button id="save-edit-btn" class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition">Save</button>
+                    </div>
+                </div>
+
+                <!-- View Mode -->
+                <div id="modal-view-mode">
+                    <div class="flex items-center gap-2 mb-2">
+                        <h2 id="modal-username" class="text-xl font-bold text-white"></h2>
+                        <div id="modal-rank-badge"></div>
+                    </div>
+                    <p id="modal-bio" class="text-slate-400 text-sm leading-relaxed whitespace-pre-wrap"></p>
+                    <div class="mt-6 pt-4 border-t border-slate-800 flex justify-between text-xs text-slate-500">
+                        <span>Joined recently</span>
+                        <span id="modal-status-text" class="capitalize"></span>
+                    </div>
+                </div>
+
+                <!-- Edit Mode -->
+                <div id="modal-edit-mode" class="hidden space-y-4">
+                    <div>
+                        <label class="text-xs text-slate-400 uppercase font-bold">Username</label>
+                        <input type="text" id="edit-username" class="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-sm focus:outline-none focus:border-indigo-500" />
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 uppercase font-bold">Bio</label>
+                        <textarea id="edit-bio" class="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-sm focus:outline-none focus:border-indigo-500 h-20 resize-none"></textarea>
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 uppercase font-bold">Avatar URL</label>
+                        <input type="text" id="edit-photo-url" class="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-sm focus:outline-none focus:border-indigo-500" placeholder="https://..." />
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 uppercase font-bold">Banner URL</label>
+                        <input type="text" id="edit-banner-url" class="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-sm focus:outline-none focus:border-indigo-500" placeholder="https://..." />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Constants & Config ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDncManQICLPVT8WuMVO5kB-Am32VI12wo",
+            authDomain: "chatlaxy-pro.firebaseapp.com",
+            projectId: "chatlaxy-pro",
+            storageBucket: "chatlaxy-pro.firebasestorage.app",
+            messagingSenderId: "807800533954",
+            appId: "1:807800533954:web:517cd7d074eb50b9cb9c5b",
+            measurementId: "G-M0D68NGRV5"
+        };
+        const DEFAULT_BANNER = "https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?w=1000&auto=format&fit=crop&q=60";
+        const DEFAULT_AVATAR = "https://cdn-icons-png.flaticon.com/512/149/149071.png";
+
+        // --- Init Firebase ---
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        
+        // --- State ---
+        let currentUser = null;
+        let currentProfile = null;
+        let selectedUser = null;
+        let authMode = 'login';
+        let listeners = [];
+        let heartbeatInterval = null;
+
+        // --- DOM Elements ---
+        const screens = {
+            loading: document.getElementById('loading-screen'),
+            auth: document.getElementById('auth-screen'),
+            app: document.getElementById('app-screen')
+        };
+        
+        // --- Rank Logic ---
+        function getRankColor(rank) {
+            switch (rank) {
+                case 'Developer': return 'text-red-500 shadow-red-500/50';
+                case 'Owner': return 'text-yellow-400 shadow-yellow-400/50';
+                case 'Super-VIP': return 'text-pink-500 shadow-pink-500/50';
+                case 'VIP': return 'text-purple-400 shadow-purple-400/50';
+                default: return 'text-slate-400';
+            }
+        }
+
+        function getRankBadgeHTML(rank) {
+             const color = getRankColor(rank).split(' ')[0];
+             let icon = '';
+             if (rank === 'Developer') icon = 'code';
+             else if (rank === 'Owner') icon = 'crown';
+             else if (rank === 'Super-VIP') icon = 'zap';
+             else if (rank === 'VIP') icon = 'shield';
+             
+             if (!icon) return '';
+
+             return `
+                <span class="flex items-center text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-800/50 border border-slate-700 ${color} ml-2">
+                    <i data-lucide="${icon}" class="w-3 h-3 mr-1"></i> ${rank}
+                </span>
+             `;
+        }
+
+        // --- Helpers ---
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function refreshIcons() {
+            lucide.createIcons();
+        }
+
+        // --- Auth & State Management ---
+        auth.onAuthStateChanged(async (user) => {
+            currentUser = user;
+            if (user) {
+                // User is logged in
+                const userRef = db.collection('users').doc(user.uid);
+                
+                // Status Heartbeat
+                const updateStatus = async () => {
+                    await userRef.set({
+                        status: 'online',
+                        lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                };
+                updateStatus();
+                heartbeatInterval = setInterval(updateStatus, 60000);
+
+                // Listen to own profile
+                const unsubProfile = userRef.onSnapshot(doc => {
+                    if (doc.exists) {
+                        currentProfile = doc.data();
+                        renderHeader();
+                    }
+                });
+                listeners.push(unsubProfile);
+
+                // Listen to messages
+                const unsubMessages = db.collection('messages').orderBy('createdAt', 'desc').limit(50)
+                    .onSnapshot(snapshot => {
+                        const msgs = snapshot.docs.map(d => ({id: d.id, ...d.data()})).reverse();
+                        renderMessages(msgs);
+                    });
+                listeners.push(unsubMessages);
+
+                // Listen to users
+                const unsubUsers = db.collection('users').orderBy('lastSeen', 'desc').limit(20)
+                    .onSnapshot(snapshot => {
+                        const now = Date.now();
+                        const users = snapshot.docs.map(doc => {
+                            const data = doc.data();
+                            const lastSeenMillis = data.lastSeen?.toMillis ? data.lastSeen.toMillis() : now;
+                            const isOnline = (now - lastSeenMillis < 5 * 60 * 1000);
+                            return { ...data, status: isOnline ? 'online' : 'offline' };
+                        });
+                        renderOnlineUsers(users);
+                    });
+                listeners.push(unsubUsers);
+
+                screens.loading.classList.add('hidden');
+                screens.auth.classList.add('hidden');
+                screens.app.classList.remove('hidden');
+            } else {
+                // User is logged out
+                currentUser = null;
+                currentProfile = null;
+                listeners.forEach(unsub => unsub());
+                listeners = [];
+                if (heartbeatInterval) clearInterval(heartbeatInterval);
+
+                screens.loading.classList.add('hidden');
+                screens.app.classList.add('hidden');
+                screens.auth.classList.remove('hidden');
+            }
+        });
+
+        // --- Rendering ---
+        
+        function renderHeader() {
+            if (!currentProfile) return;
+            const container = document.getElementById('current-user-header');
+            container.innerHTML = `
+                <button onclick="openProfile(null, true)" class="flex items-center gap-3 hover:bg-white/5 p-1.5 rounded-lg transition">
+                    <div class="text-right hidden sm:block">
+                        <div class="text-sm font-bold text-white">${escapeHtml(currentProfile.username)}</div>
+                        <div class="text-xs ${getRankColor(currentProfile.rank)}">${currentProfile.rank}</div>
+                    </div>
+                    <img src="${currentProfile.photoURL || DEFAULT_AVATAR}" class="w-9 h-9 rounded-full border border-slate-600 object-cover" />
+                </button>
+            `;
+        }
+
+        function renderMessages(messages) {
+            const list = document.getElementById('messages-list');
+            
+            // Re-rendering fully for simplicity (in a real vanilla app, we'd diff)
+            let html = '';
+            messages.forEach((msg, idx) => {
+                const isMe = currentUser && msg.uid === currentUser.uid;
+                const isConsecutive = idx > 0 && messages[idx - 1].uid === msg.uid;
+                
+                const rankBadge = getRankBadgeHTML(msg.rank);
+                const time = msg.createdAt ? new Date(msg.createdAt.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '...';
+
+                // We inject a dataset to handle clicking the avatar to view profile
+                // We'll fake the profile object for click handler by storing basic data in data attrs
+                const userDataAttr = escapeHtml(JSON.stringify({
+                    uid: msg.uid, username: msg.username, photoURL: msg.photoURL, rank: msg.rank, bio: '...', bannerURL: ''
+                }));
+
+                html += `
+                <div class="flex gap-4 ${isMe ? 'flex-row-reverse' : ''} group relative z-10">
+                    ${!isConsecutive ? `
+                        <div class="cursor-pointer transition hover:scale-105" onclick="handleAvatarClick('${msg.uid}')">
+                            <img src="${msg.photoURL || DEFAULT_AVATAR}" class="w-10 h-10 rounded-full border-2 border-slate-700 object-cover" />
+                        </div>
+                    ` : '<div class="w-10"></div>'}
+                    
+                    <div class="flex flex-col max-w-[70%] ${isMe ? 'items-end' : 'items-start'}">
+                        ${!isConsecutive ? `
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-sm font-bold ${isMe ? 'text-indigo-400' : 'text-slate-300'}">${escapeHtml(msg.username)}</span>
+                                ${rankBadge}
+                                <span class="text-[10px] text-slate-600">${time}</span>
+                            </div>
+                        ` : ''}
+                        <div class="px-4 py-2 rounded-2xl text-sm leading-relaxed shadow-sm ${isMe ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-tl-none'}">
+                            ${escapeHtml(msg.text)}
+                        </div>
+                    </div>
+                </div>
+                `;
+            });
+            list.innerHTML = html;
+            refreshIcons();
+            document.getElementById('messages-end').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Global list of users to find profile data
+        let globalUsersCache = [];
+
+        function renderOnlineUsers(users) {
+            globalUsersCache = users;
+            const container = document.getElementById('users-list');
+            document.getElementById('online-count').textContent = users.filter(u => u.status === 'online').length;
+
+            let html = '';
+            users.forEach(u => {
+                const rankBadge = getRankBadgeHTML(u.rank);
+                html += `
+                    <button onclick="handleAvatarClick('${u.uid}')" class="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800 transition group text-left">
+                        <div class="relative">
+                            <img src="${u.photoURL || DEFAULT_AVATAR}" class="w-10 h-10 rounded-full bg-slate-800 object-cover" />
+                            <div class="absolute bottom-0 right-0 w-3 h-3 border-2 border-slate-900 rounded-full ${u.status === 'online' ? 'bg-green-500' : 'bg-slate-500'}"></div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-1">
+                                <span class="font-medium text-slate-200 truncate text-sm">${escapeHtml(u.username)}</span>
+                                ${rankBadge}
+                            </div>
+                            <div class="text-xs text-slate-500 truncate">${u.status}</div>
+                        </div>
+                    </button>
+                `;
+            });
+            container.innerHTML = html;
+            refreshIcons();
+        }
+
+        // --- Interaction Logic ---
+        
+        // Handle avatar click by finding user in cache or creating placeholder
+        window.handleAvatarClick = (uid) => {
+            const user = globalUsersCache.find(u => u.uid === uid) || {
+                uid: uid,
+                username: 'User',
+                photoURL: DEFAULT_AVATAR,
+                bannerURL: DEFAULT_BANNER,
+                bio: "Offline or info not available.",
+                rank: 'User',
+                status: 'offline'
+            };
+            openProfile(user);
+        };
+
+        function openProfile(user, isMe = false) {
+            if (isMe && currentProfile) user = currentProfile;
+            selectedUser = user;
+            
+            // Populate Modal
+            document.getElementById('modal-banner').src = user.bannerURL || DEFAULT_BANNER;
+            document.getElementById('modal-avatar').src = user.photoURL || DEFAULT_AVATAR;
+            document.getElementById('modal-username').textContent = user.username;
+            document.getElementById('modal-bio').textContent = user.bio || "No bio yet.";
+            document.getElementById('modal-rank-badge').innerHTML = getRankBadgeHTML(user.rank);
+            document.getElementById('modal-status-text').textContent = user.status || 'offline';
+            
+            const indicator = document.getElementById('modal-status-indicator');
+            if (user.status === 'online') indicator.classList.remove('hidden');
+            else indicator.classList.add('hidden');
+
+            // Setup Edit Fields
+            document.getElementById('edit-username').value = user.username;
+            document.getElementById('edit-bio').value = user.bio || '';
+            document.getElementById('edit-photo-url').value = user.photoURL || '';
+            document.getElementById('edit-banner-url').value = user.bannerURL || '';
+
+            // Handle Buttons
+            const editBtn = document.getElementById('edit-profile-btn');
+            const editActions = document.getElementById('edit-actions');
+            const viewMode = document.getElementById('modal-view-mode');
+            const editMode = document.getElementById('modal-edit-mode');
+
+            if (currentUser && user.uid === currentUser.uid) {
+                editBtn.classList.remove('hidden');
+            } else {
+                editBtn.classList.add('hidden');
+            }
+            
+            // Reset to view mode
+            editActions.classList.add('hidden');
+            editMode.classList.add('hidden');
+            editBtn.classList.remove('hidden-force');
+            viewMode.classList.remove('hidden');
+
+            document.getElementById('profile-modal').classList.remove('hidden');
+            refreshIcons();
+        }
+
+        // --- Event Listeners ---
+
+        // Auth
+        const authForm = document.getElementById('auth-form');
+        const authSwitchBtn = document.getElementById('auth-switch-btn');
+        const signupFields = document.getElementById('signup-fields');
+        const authSubmitBtn = document.getElementById('auth-submit-btn');
+
+        authSwitchBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            authMode = authMode === 'login' ? 'signup' : 'login';
+            if (authMode === 'signup') {
+                signupFields.classList.remove('hidden');
+                authSubmitBtn.textContent = 'Initialize Protocol';
+                document.getElementById('auth-switch-text').textContent = "Already have an account? ";
+                authSwitchBtn.textContent = "Login";
+                document.getElementById('auth-username').required = true;
+            } else {
+                signupFields.classList.add('hidden');
+                authSubmitBtn.textContent = 'Enter Command';
+                document.getElementById('auth-switch-text').textContent = "Don't have an account? ";
+                authSwitchBtn.textContent = "Sign up";
+                document.getElementById('auth-username').required = false;
+            }
+        });
+
+        authForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            const username = document.getElementById('auth-username').value;
+            const errorDiv = document.getElementById('auth-error');
+
+            errorDiv.classList.add('hidden');
+            
+            try {
+                if (authMode === 'login') {
+                    await auth.signInWithEmailAndPassword(email, password);
+                } else {
+                    if (username.length < 3) throw new Error("Username must be at least 3 chars");
+                    const cred = await auth.createUserWithEmailAndPassword(email, password);
+                    const uid = cred.user.uid;
+                    
+                    let rank = 'User';
+                    if (username === 'Developer') rank = 'Developer';
+
+                    await db.collection('users').doc(uid).set({
+                        uid,
+                        username,
+                        email,
+                        photoURL: DEFAULT_AVATAR,
+                        bannerURL: DEFAULT_BANNER,
+                        bio: 'New to ChatLaxy!',
+                        rank,
+                        status: 'online',
+                        lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    await cred.user.updateProfile({ displayName: username, photoURL: DEFAULT_AVATAR });
+                }
+            } catch (err) {
+                errorDiv.textContent = err.message;
+                errorDiv.classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', () => auth.signOut());
+
+        // Sidebar
+        document.getElementById('mobile-menu-btn').addEventListener('click', () => {
+            const sb = document.getElementById('sidebar');
+            sb.classList.toggle('translate-x-full');
+        });
+
+        // Chat
+        document.getElementById('message-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('message-input');
+            const text = input.value.trim();
+            if (!text || !currentUser || !currentProfile) return;
+
+            input.value = '';
+            await db.collection('messages').add({
+                text,
+                uid: currentUser.uid,
+                username: currentProfile.username,
+                photoURL: currentProfile.photoURL,
+                rank: currentProfile.rank,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        });
+
+        // Modal
+        document.getElementById('close-modal-btn').addEventListener('click', () => {
+            document.getElementById('profile-modal').classList.add('hidden');
+        });
+
+        document.getElementById('edit-profile-btn').addEventListener('click', () => {
+            document.getElementById('edit-profile-btn').classList.add('hidden-force');
+            document.getElementById('edit-actions').classList.remove('hidden');
+            document.getElementById('modal-view-mode').classList.add('hidden');
+            document.getElementById('modal-edit-mode').classList.remove('hidden');
+        });
+
+        document.getElementById('cancel-edit-btn').addEventListener('click', () => {
+            openProfile(selectedUser); // Reset
+        });
+
+        document.getElementById('save-edit-btn').addEventListener('click', async () => {
+            if (!currentUser) return;
+            const newUsername = document.getElementById('edit-username').value;
+            const newBio = document.getElementById('edit-bio').value;
+            const newPhoto = document.getElementById('edit-photo-url').value;
+            const newBanner = document.getElementById('edit-banner-url').value;
+
+            try {
+                await db.collection('users').doc(currentUser.uid).update({
+                    username: newUsername,
+                    bio: newBio,
+                    photoURL: newPhoto,
+                    bannerURL: newBanner
+                });
+                
+                // Update local auth profile too
+                if (newUsername || newPhoto) {
+                    await currentUser.updateProfile({
+                        displayName: newUsername || currentUser.displayName,
+                        photoURL: newPhoto || currentUser.photoURL
+                    });
+                }
+                
+                // Close modal or refresh it (snapshot listener will handle UI update of header/list, we just reset modal state)
+                document.getElementById('profile-modal').classList.add('hidden');
+            } catch (err) {
+                console.error(err);
+                alert("Error updating profile");
+            }
+        });
+
+    </script>
+</body>
 </html>
